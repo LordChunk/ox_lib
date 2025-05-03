@@ -1,4 +1,4 @@
-name: Release
+name: Create release
 
 on:
   push:
@@ -22,14 +22,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download build artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4 # Updated action version
         with:
-          name: ox_lib_plugin_build
-
-      - name: Update tag ref
-        uses: EndBug/latest-tag@latest
-        with:
-          ref: ${{ github.ref_name }}
+          name: ox_lib_build # Updated artifact name
 
       # This dependency is archived, possibly replace it with a maintained one
       - name: Create Release
