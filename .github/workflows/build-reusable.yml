@@ -22,55 +22,47 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 8.6.1
-
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 16.x
-          cache: 'pnpm'
-          cache-dependency-path: 'web/pnpm-lock.yaml'
+          bun-version: latest
 
       - name: Set env
         if: inputs.version != ''
         run: echo "RELEASE_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Install package dependencies
+        run: bun install
+        working-directory: package
+
+      - name: Install web dependencies
+        run: bun install
         working-directory: web
 
-      - name: Install package dependencies
-        run: pnpm install
-        working-directory: package
+      - name: Run web build script
+        run: bun run build
+        working-directory: web
 
       - name: Bump package version
         if: inputs.bump_version
-        run: pnpm version ${{ inputs.version }}
-        working-directory: package
-
-      - name: Run build
-        run: pnpm build
-        working-directory: web
-        env:
-          CI: false
-
-      - name: Bump manifest version
-        if: inputs.bump_version
-        run: node .github/actions/bump-manifest-version.js
+        run: bun .github/actions/bump-package-version.js
         env:
           TGT_RELEASE_VERSION: ${{ inputs.version }}
 
-      - name: Push manifest change
+      - name: Bump manifest version
+        if: inputs.bump_version
+        run: bun .github/actions/bump-manifest-version.js
+        env:
+          TGT_RELEASE_VERSION: ${{ inputs.version }}
+
+      - name: Push version bump change
         if: inputs.bump_version
         uses: EndBug/add-and-commit@v9
         with:
-          add: fxmanifest.lua
+          add: '["fxmanifest.lua", "package/package.json"]'
           push: true
-          author_name: Manifest Bumper
-          author_email: 41898282+github-actions[bot]@users.noreply.github.com
-          message: 'chore: bump manifest version to ${{ inputs.version }}'
+          default_author: github_actions
+          message: 'chore: bump version to ${{ inputs.version }}'
 
       - name: Bundle files
         run: |
@@ -79,24 +71,19 @@ jobs:
           cp ./{LICENSE,README.md,fxmanifest.lua,init.lua} ./temp/ox_lib
           cp -r ./{imports,resource,locales} ./temp/ox_lib
           cp -r ./web/build ./temp/ox_lib/web/
-          
-      - name: Upload plugin build artifact
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ox_lib_plugin_build
-          path: ./temp/
-      
-      - name: Build and publish package
-        uses: JS-DevTools/npm-publish@v3
-        if: inputs.bump_version
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          package: './package/package.json'
-          access: 'public'
+          name: ox_lib_build
+          path: ./temp/ox_lib
 
-      - name: Build package
-        if: inputs.bump_version == false
+      - name: Publish package to npm registry
+        if: inputs.bump_version
+        run: bun publish --access public
         working-directory: package
-        run: pnpm run compile
+        env:
+          # Assuming NPM_TOKEN secret is configured in the repository
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
 
